@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>아이온2 강타 vs 전/후피증 분배 계산기</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Noto Sans KR',sans-serif;background:#0f172a;color:#f8fafc}
+  input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;width:100%}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:18px;width:18px;border-radius:50%;background:#38bdf8;margin-top:-6px;cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;background:#334155;border-radius:3px}
+  input[type=range]::-moz-range-thumb{height:18px;width:18px;border-radius:50%;background:#38bdf8;border:0}
+  input[type=range]::-moz-range-track{height:6px;background:#334155;border-radius:3px}
+  .card{background:rgba(15,23,42,.9);border:1px solid #1e293b;border-radius:1rem;padding:1.1rem}
+  .num{background:#1e293b;border:1px solid #334155;border-radius:.4rem;padding:.25rem .5rem;font-weight:700;text-align:right}
+  .num:focus{outline:none;border-color:#38bdf8}
+  .seg button{padding:.4rem 0;font-size:.75rem;border-radius:.5rem;color:#94a3b8}
+  .seg button.on{background:rgba(14,165,233,.2);color:#38bdf8;border:1px solid rgba(14,165,233,.35);font-weight:700}
+  .warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#fcd34d}
+</style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+<div class="max-w-5xl mx-auto">
+
+<header class="mb-5 border-b border-slate-800 pb-4">
+  <span class="text-xs font-bold px-2 py-1 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30">스탯보드 분배 시뮬레이터 v3</span>
+  <h1 class="text-2xl md:text-3xl font-bold mt-2 bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">강타 vs 전/후피증 분배 계산기</h1>
+  <p class="text-slate-400 text-sm mt-1">노드를 어떻게 나눠야 최종 딜 기댓값이 가장 높은지 모든 조합을 계산합니다.</p>
+  <div class="flex flex-wrap gap-2 mt-3">
+    <button class="preset px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs rounded-lg border border-slate-700" data-p="53.6,47.7,85,2.0,2.4,2.6,3.0">53.6 / 47.7 · 85%</button>
+    <button class="preset px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs rounded-lg border border-slate-700" data-p="71.4,65.5,90,2.2,2.6,2.8,3.2">71.4 / 65.5 · 90%</button>
+    <button class="preset px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs rounded-lg border border-slate-700" data-p="55.0,17.0,64,2.0,2.4,2.6,3.0">55.0 / 17.0 · 64%</button>
+  </div>
+</header>
+
+<main class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+<section class="lg:col-span-5 flex flex-col gap-5">
+
+  <div class="card">
+    <h2 class="font-semibold mb-4">1. 현재 스탯창 수치 (노드 분배 전)</h2>
+    <div class="space-y-4">
+      <div>
+        <div class="flex justify-between items-center text-sm mb-1"><label class="text-slate-300">스탯창 강타 (%)</label><input id="baseCrit" type="number" step="0.1" value="53.6" class="num w-20 text-sky-400"></div>
+        <input id="baseCritR" type="range" min="0" max="120" step="0.1" value="53.6">
+      </div>
+      <div>
+        <div class="flex justify-between items-center text-sm mb-1"><label class="text-slate-300">스탯창 전/후피증 (%)</label><input id="basePos" type="number" step="0.1" value="47.7" class="num w-20 text-indigo-400"></div>
+        <input id="basePosR" type="range" min="0" max="120" step="0.1" value="47.7">
+      </div>
+      <div class="pt-2 border-t border-slate-800">
+        <div class="flex justify-between text-sm mb-1"><label class="text-slate-300">전/후방 타격 비중</label><span id="hitDisp" class="text-emerald-400 font-bold">85%</span></div>
+        <input id="hit" type="range" min="0" max="100" step="1" value="85">
+        <div class="flex justify-between text-[11px] text-slate-500 mt-1">
+          <button class="hitq" data-v="64">64%</button><button class="hitq" data-v="80">80%</button><button class="hitq" data-v="85">85%</button><button class="hitq" data-v="90">90%</button><button class="hitq" data-v="95">95%</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="font-semibold mb-3">2. 노드 수치 · 환경</h2>
+    <label class="block text-xs text-slate-400 mb-1">노드 랜덤 수치 적용 기준</label>
+    <div class="seg grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 mb-4">
+      <button data-m="min">최소 (하옵)</button><button data-m="avg" class="on">평균 기댓값</button><button data-m="max">최대 (상옵)</button>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="bg-slate-800/60 p-3 rounded-xl">
+        <div class="flex justify-between text-xs mb-1.5"><span>1칸당 강타</span><span id="cAvgB" class="text-sky-400"></span></div>
+        <div class="flex items-center gap-1"><input id="cMin" type="number" step="0.1" value="2.0" class="num w-full text-center text-sky-400 text-xs"><span class="text-slate-500">~</span><input id="cMax" type="number" step="0.1" value="2.4" class="num w-full text-center text-sky-400 text-xs"></div>
+      </div>
+      <div class="bg-slate-800/60 p-3 rounded-xl">
+        <div class="flex justify-between text-xs mb-1.5"><span>1칸당 전/후피</span><span id="pAvgB" class="text-indigo-400"></span></div>
+        <div class="flex items-center gap-1"><input id="pMin" type="number" step="0.1" value="2.6" class="num w-full text-center text-indigo-400 text-xs"><span class="text-slate-500">~</span><input id="pMax" type="number" step="0.1" value="3.0" class="num w-full text-center text-indigo-400 text-xs"></div>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <div class="bg-slate-800/60 p-2.5 rounded-xl"><label class="block text-[11px] text-slate-400 mb-1">총 노드 칸수</label><input id="N" type="number" min="1" max="40" value="10" class="num w-full text-left"></div>
+      <div class="bg-slate-800/60 p-2.5 rounded-xl"><label class="block text-[11px] text-slate-400 mb-1">보스 강타 저항 (%)</label><input id="res" type="number" step="1" value="40" class="num w-full text-left text-rose-400"></div>
+      <div class="bg-slate-800/60 p-2.5 rounded-xl"><label class="block text-[11px] text-slate-400 mb-1">강타 시너지 (%)</label><input id="syn" type="number" step="1" value="10" class="num w-full text-left text-emerald-400"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="font-semibold mb-2">3. 전/후피증 계산 모델</h2>
+    <div class="seg grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 mb-3" id="modelSeg">
+      <button data-k="indep" class="on">독립 곱연산</button><button data-k="pool">피증 합산 묶음</button>
+    </div>
+    <p id="modelDesc" class="text-xs text-slate-400 mb-3"></p>
+    <div id="poolInputs" class="grid grid-cols-2 gap-2 hidden">
+      <div class="bg-slate-800/60 p-2.5 rounded-xl"><label class="block text-[11px] text-slate-400 mb-1">다른 피증 합 (%)</label><input id="otherAmp" type="number" step="0.1" value="30" class="num w-full text-left"></div>
+      <div class="bg-slate-800/60 p-2.5 rounded-xl"><label class="block text-[11px] text-slate-400 mb-1">보스 피해내성 (%)</label><input id="ampRes" type="number" step="0.1" value="20" class="num w-full text-left text-rose-400"></div>
+    </div>
+    <p class="warn text-[11px] rounded-lg p-2 mt-3">두 모델 중 어느 쪽이 실제 게임 공식인지는 확인된 출처가 없습니다. 둘 다 돌려 보고 결과가 같으면 안심해도 됩니다.</p>
+  </div>
+
+  <div class="card text-xs text-slate-400 space-y-1.5">
+    <div class="font-semibold text-slate-300">적용 공식</div>
+    <p>• 실적용 강타 C = 스탯창 강타 + 시너지(<span id="fSyn">10</span>%) − 보스 저항(<span id="fRes">40</span>%), 0~100%로 제한</p>
+    <p>• 강타 배율 = <code class="text-sky-300">1 + C</code> (강타 = 피해 2배)</p>
+    <p>• 전/후피 배율 = <span id="fPos"></span></p>
+    <p>• 총 배율 = 강타 배율 × 전/후피 배율. 모든 정수 분배를 계산해 최대값을 찾습니다.</p>
+    <p>• 평균 모드: 노드 수치가 최소~최대에서 균등하게 뜬다고 가정합니다. 강타 쪽과 전/후피 쪽이 서로 독립이고 제한 구간에 걸리지 않으면 정확한 기댓값입니다.</p>
+    <p class="pt-1 text-slate-500">근거: 강타 2배는 인벤 유저 실험글 기준. 보스 강타 저항이 확률에서 빠지는지, 전/후피증이 피증 묶음에 들어가는지는 확인되지 않았습니다.
+      <a class="underline text-sky-400" href="https://www.inven.co.kr/board/aion2/6444/909">대미지 실험</a> ·
+      <a class="underline text-sky-400" href="https://www.inven.co.kr/board/aion2/6444/902">피증 공식</a></p>
+  </div>
+</section>
+
+<section class="lg:col-span-7 flex flex-col gap-5">
+  <div class="card border-sky-500/30" style="background:linear-gradient(135deg,#0f172a,#0f172a 60%,rgba(30,27,75,.5))">
+    <div class="flex flex-col sm:flex-row justify-between gap-3 mb-4">
+      <div><span class="text-xs font-bold text-sky-400">추천 세팅</span><h2 id="recTitle" class="text-xl font-bold mt-0.5">10칸 최적 분배</h2></div>
+      <div class="bg-slate-950/80 border border-slate-800 px-3 py-2 rounded-xl sm:text-right">
+        <span class="text-xs text-slate-400 block">연속값 기준 최적점</span>
+        <span id="exactTxt" class="text-sm font-bold text-emerald-400"></span>
+      </div>
+    </div>
+    <div class="flex justify-between text-sm font-bold mb-2">
+      <span class="text-sky-400">강타 <span id="recC" class="text-lg"></span>칸 (<span id="recCG"></span>)</span>
+      <span class="text-indigo-400">전/후피 <span id="recP" class="text-lg"></span>칸 (<span id="recPG"></span>)</span>
+    </div>
+    <div id="blocks" class="grid gap-1 h-8 mb-1"></div>
+    <div id="clampNote" class="warn text-[11px] rounded-lg p-2 mt-3 hidden"></div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4 mt-4 border-t border-slate-800">
+      <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800"><span class="text-xs text-slate-400 block">최종 강타</span><span id="fC" class="text-xl font-bold text-sky-400 block"></span><span id="fCR" class="text-[11px] text-sky-300/70 block"></span><span id="fCE" class="text-[11px] text-slate-500 block"></span></div>
+      <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800"><span class="text-xs text-slate-400 block">최종 전/후피</span><span id="fP" class="text-xl font-bold text-indigo-400 block"></span><span id="fPR" class="text-[11px] text-indigo-300/70 block"></span><span id="fPE" class="text-[11px] text-slate-500 block"></span></div>
+      <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800 col-span-2 sm:col-span-1"><span class="text-xs text-slate-400 block">딜 기댓값 배율</span><span id="fM" class="text-xl font-bold text-emerald-400 block"></span><span id="fMR" class="text-[11px] text-emerald-300/70 block"></span><span id="fMB" class="text-[11px] block"></span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="flex justify-between items-center mb-3"><h3 class="text-sm font-semibold">직접 칸수 조절</h3><button id="toOpt" class="text-xs text-sky-400 underline">추천으로 맞추기</button></div>
+    <div class="flex items-center gap-3 mb-4">
+      <span class="text-xs font-bold text-sky-400 w-16">강타 <span id="mC"></span>칸</span>
+      <input id="manual" type="range" min="0" max="10" step="1" value="6" class="flex-1">
+      <span class="text-xs font-bold text-indigo-400 w-20 text-right">전/후피 <span id="mP"></span>칸</span>
+    </div>
+    <div class="grid grid-cols-2 gap-3 text-xs bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+      <div><span class="text-slate-400 block mb-1">전/후피 1칸 → 강타로 옮기면</span><span id="swapToC" class="text-base font-bold text-sky-400"></span></div>
+      <div class="border-l border-slate-800 pl-3"><span class="text-slate-400 block mb-1">강타 1칸 → 전/후피로 옮기면</span><span id="swapToP" class="text-base font-bold text-indigo-400"></span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="text-sm font-semibold mb-3">분배별 딜 배율 비교</h3>
+    <div class="h-48 mb-4"><canvas id="chart"></canvas></div>
+    <div class="overflow-auto max-h-64 rounded-xl border border-slate-800">
+      <table class="w-full text-xs text-left">
+        <thead class="bg-slate-950 text-slate-400 sticky top-0"><tr><th class="p-2">강타:전후피</th><th class="p-2">최종 강타</th><th class="p-2">최종 전후피</th><th class="p-2">배율</th><th class="p-2 text-right">최적 대비</th></tr></thead>
+        <tbody id="tbody" class="divide-y divide-slate-800/60 text-slate-300"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+</main>
+<p class="text-center text-[11px] text-slate-600 mt-6">공식은 유저 실험 기반이며 패치로 달라질 수 있습니다.</p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let mode = 'avg', model = 'indep', chart = null, best = 0;
+
+const f = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : 0; };
+
+function params(){
+  const cMin=f('cMin'), cMax=f('cMax'), pMin=f('pMin'), pMax=f('pMax');
+  const cAvg=(cMin+cMax)/2, pAvg=(pMin+pMax)/2;
+  const dc = mode==='min'?cMin:mode==='max'?cMax:cAvg;
+  const dp = mode==='min'?pMin:mode==='max'?pMax:pAvg;
+  return { bc:f('baseCrit'), bp:f('basePos'), hit:f('hit')/100, res:f('res'), syn:f('syn'),
+    N:Math.max(1,Math.min(40,Math.round(f('N'))||10)), cMin,cMax,pMin,pMax,cAvg,pAvg,dc,dp,
+    other:f('otherAmp'), ampRes:f('ampRes') };
+}
+
+// 실적용 강타(0~1)
+function effCrit(crit,P){ return Math.max(0,Math.min(1,(crit+P.syn-P.res)/100)); }
+function posMult(pos,P){
+  if(model==='indep') return 1 + (pos/100)*P.hit;
+  // 피증 합산 묶음: 전/후방 타격일 때만 전후피가 다른 피증과 합산, 보스 피해내성 차감(0 미만 불가)
+  const withPos = 1 + Math.max(0,(P.other+pos-P.ampRes))/100;
+  const without = 1 + Math.max(0,(P.other-P.ampRes))/100;
+  return P.hit*withPos + (1-P.hit)*without;
+}
+function total(crit,pos,P){ return (1+effCrit(crit,P))*posMult(pos,P); }
+
+function calc(syncManual){
+  const P = params();
+  $('cAvgB').textContent = `평균 ${P.cAvg.toFixed(2)}%`;
+  $('pAvgB').textContent = `평균 ${P.pAvg.toFixed(2)}%`;
+  $('hitDisp').textContent = `${Math.round(P.hit*100)}%`;
+  $('fSyn').textContent = P.syn; $('fRes').textContent = P.res;
+  $('fPos').innerHTML = model==='indep'
+    ? '<code class="text-indigo-300">1 + 전후피 × 타격비중</code>'
+    : '<code class="text-indigo-300">비중×(1+max(0, 다른피증+전후피−내성)) + (1−비중)×(1+max(0, 다른피증−내성))</code>';
+  $('modelDesc').textContent = model==='indep'
+    ? '전/후피증이 다른 피해증폭과 별개로 곱해진다고 가정합니다. (기존 계산기 방식)'
+    : '전/후피증이 다른 피해증폭과 더해지고 보스 피해내성이 빠진다고 가정합니다. 다른 피증이 클수록 전/후피 1칸 가치가 줄어듭니다.';
+  $('poolInputs').classList.toggle('hidden', model!=='pool');
+  $('recTitle').textContent = `${P.N}칸 최적 분배`;
+  $('manual').max = P.N;
+
+  const rows=[];
+  let maxM=-1; best=0;
+  for(let x=0;x<=P.N;x++){
+    const c=P.bc+x*P.dc, p=P.bp+(P.N-x)*P.dp, m=total(c,p,P);
+    rows.push({x,y:P.N-x,c,p,m});
+    if(m>maxM+1e-12){maxM=m;best=x;}
+  }
+
+  // 연속값 최적점: 제한 구간까지 반영하도록 0.01칸 간격으로 직접 탐색
+  let bx=0,bm=-1;
+  for(let i=0;i<=P.N*100;i++){
+    const x=i/100, m=total(P.bc+x*P.dc,P.bp+(P.N-x)*P.dp,P);
+    if(m>bm+1e-12){bm=m;bx=x;}
+  }
+  $('exactTxt').textContent = `${bx.toFixed(2)}칸 : ${(P.N-bx).toFixed(2)}칸`;
+
+  // 제한 구간 안내
+  const e0=(P.bc+P.syn-P.res), e1=(P.bc+P.N*P.dc+P.syn-P.res);
+  const note=$('clampNote'); const msgs=[];
+  if(e0<0) msgs.push(`현재 실적용 강타가 ${e0.toFixed(1)}%로 0 미만입니다. 강타 ${Math.ceil(-e0/(P.dc||1))}칸 전까지는 강타 노드가 딜을 올리지 않습니다.`);
+  if(e1>100) msgs.push(`강타에 전부 투자하면 실적용 강타가 100%를 넘습니다. 초과분은 버려집니다.`);
+  note.classList.toggle('hidden',!msgs.length); note.textContent=msgs.join(' ');
+
+  const g=(n,a,b,d)=> a===b?`+${(n*d).toFixed(1)}%`:`+${(n*a).toFixed(1)}~${(n*b).toFixed(1)}%`;
+  $('recC').textContent=best; $('recP').textContent=P.N-best;
+  $('recCG').textContent=g(best,P.cMin,P.cMax,P.dc);
+  $('recPG').textContent=g(P.N-best,P.pMin,P.pMax,P.dp);
+
+  const bl=$('blocks'); bl.innerHTML='';
+  if(P.N<=20){
+    bl.style.display='grid'; bl.style.gridTemplateColumns=`repeat(${P.N},minmax(0,1fr))`;
+    for(let i=0;i<P.N;i++){const d=document.createElement('div');d.className='rounded '+(i<best?'bg-sky-400':'bg-indigo-500');bl.appendChild(d);}
+  } else {
+    bl.style.display='flex'; bl.style.gap='0';
+    const a=document.createElement('div'),b=document.createElement('div');
+    a.className='bg-sky-400 rounded-l';b.className='bg-indigo-500 rounded-r';
+    a.style.width=`${best/P.N*100}%`;b.style.width=`${(P.N-best)/P.N*100}%`;
+    bl.append(a,b);
+  }
+
+  if(syncManual || +$('manual').value>P.N) $('manual').value=best;
+  manual(rows,maxM,P);
+  table(rows,maxM,P);
+}
+
+function manual(rows,maxM,P){
+  P=P||params();
+  const x=Math.min(P.N,+$('manual').value), y=P.N-x;
+  $('mC').textContent=x; $('mP').textContent=y;
+  const c=P.bc+x*P.dc, p=P.bp+y*P.dp, m=total(c,p,P);
+  const cLo=P.bc+x*P.cMin, cHi=P.bc+x*P.cMax, pLo=P.bp+y*P.pMin, pHi=P.bp+y*P.pMax;
+  $('fC').textContent=`${c.toFixed(1)}%`; $('fCR').textContent=`범위 ${cLo.toFixed(1)}~${cHi.toFixed(1)}%`;
+  $('fCE').textContent=`실적용 ${(effCrit(c,P)*100).toFixed(1)}%`;
+  $('fP').textContent=`${p.toFixed(1)}%`; $('fPR').textContent=`범위 ${pLo.toFixed(1)}~${pHi.toFixed(1)}%`;
+  $('fPE').textContent=`배율 ×${posMult(p,P).toFixed(4)}`;
+  $('fM').textContent=`${m.toFixed(4)}배`;
+  $('fMR').textContent=`범위 ${total(cLo,pLo,P).toFixed(3)}~${total(cHi,pHi,P).toFixed(3)}배`;
+  const fmt=v=> v===null?'불가':`${v>=0?'+':''}${v.toFixed(2)}%`;
+  const toC = y>0 ? (total(c+P.dc,p-P.dp,P)/m-1)*100 : null;
+  const toP = x>0 ? (total(c-P.dc,p+P.dp,P)/m-1)*100 : null;
+  $('swapToC').textContent=fmt(toC); $('swapToP').textContent=fmt(toP);
+  const b=$('fMB');
+  if(x===best){b.textContent='★ 최고 효율';b.className='text-[11px] block text-emerald-400 font-semibold';}
+  else {b.textContent=`추천 ${best}:${P.N-best} 대비 ${((m/total(P.bc+best*P.dc,P.bp+(P.N-best)*P.dp,P)-1)*100).toFixed(2)}%`;b.className='text-[11px] block text-amber-400';}
+}
+
+function table(rows,maxM,P){
+  const tb=$('tbody'); tb.innerHTML='';
+  rows.forEach(r=>{
+    const isB=r.x===best, tr=document.createElement('tr');
+    tr.className=isB?'bg-sky-500/15 text-white font-semibold':'hover:bg-slate-800/50 cursor-pointer';
+    tr.onclick=()=>{$('manual').value=r.x;manual(null,null,null);};
+    tr.innerHTML=`<td class="p-2"><span class="text-sky-400">${r.x}</span> : <span class="text-indigo-400">${r.y}</span>${isB?' <span class="ml-1 text-[10px] bg-sky-500 text-slate-950 px-1.5 rounded font-bold">BEST</span>':''}</td>
+      <td class="p-2">${r.c.toFixed(1)}%</td><td class="p-2">${r.p.toFixed(1)}%</td>
+      <td class="p-2 text-emerald-400">${r.m.toFixed(4)}</td>
+      <td class="p-2 text-right ${isB?'text-emerald-400':'text-slate-400'}">${isB?'최적':((r.m/maxM-1)*100).toFixed(2)+'%'}</td>`;
+    tb.appendChild(tr);
+  });
+  if(typeof Chart==='undefined') return;
+  if(chart) chart.destroy();
+  chart=new Chart($('chart'),{type:'line',
+    data:{labels:rows.map(r=>`${r.x}:${r.y}`),datasets:[{data:rows.map(r=>r.m),borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,.1)',fill:true,tension:0,
+      pointBackgroundColor:rows.map(r=>r.x===best?'#34d399':'#38bdf8'),pointRadius:rows.map(r=>r.x===best?6:3)}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`배율 ${c.parsed.y.toFixed(4)}`}}},
+      scales:{x:{ticks:{color:'#94a3b8'},grid:{color:'rgba(51,65,85,.3)'},title:{display:true,text:'강타 : 전/후피 칸수',color:'#64748b'}},
+              y:{ticks:{color:'#94a3b8'},grid:{color:'rgba(51,65,85,.3)'}}}}});
+}
+
+// 이벤트
+[['baseCrit','baseCritR'],['basePos','basePosR']].forEach(([n,r])=>{
+  $(n).addEventListener('input',()=>{$(r).value=$(n).value;calc();});
+  $(r).addEventListener('input',()=>{$(n).value=$(r).value;calc();});
+});
+['hit','cMin','cMax','pMin','pMax','N','res','syn','otherAmp','ampRes'].forEach(id=>$(id).addEventListener('input',()=>calc()));
+$('manual').addEventListener('input',()=>manual(null,null,null));
+$('toOpt').onclick=()=>{$('manual').value=best;manual(null,null,null);};
+document.querySelectorAll('.hitq').forEach(b=>b.onclick=()=>{$('hit').value=b.dataset.v;calc();});
+document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll('[data-m]').forEach(x=>x.classList.toggle('on',x===b));calc();});
+document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{model=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>x.classList.toggle('on',x===b));calc(true);});
+document.querySelectorAll('.preset').forEach(b=>b.onclick=()=>{
+  const [c,p,h,a,bb,d,e]=b.dataset.p.split(',');
+  $('baseCrit').value=$('baseCritR').value=c; $('basePos').value=$('basePosR').value=p; $('hit').value=h;
+  $('cMin').value=a;$('cMax').value=bb;$('pMin').value=d;$('pMax').value=e;$('N').value=10; calc(true);
+});
+calc(true);
+</script>
+</body>
+</html>
